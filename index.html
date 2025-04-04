@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama 3.2 1B Chat - MLC Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+        window.webllm = webllm;
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .chat-container {
+            height: calc(100vh - 180px);
+        }
+        .message-enter {
+            animation: messageEnter 0.3s ease-out;
+        }
+        @keyframes messageEnter {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #6b7280;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes bounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-5px);
+            }
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        #init-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .error-message {
+            animation: shake 0.5s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Llama 3.2 1B Chat</h1>
+                    <p class="text-gray-600">Powered by MLC (Machine Learning Compilation)</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
+                        <i class="fas fa-robot text-white text-sm"></i>
+                    </div>
+                    <span class="font-medium text-gray-700">MLC AI</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Model loading section -->
+            <div id="loading-section" class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800">Initialize Model</h2>
+                    <div id="loading-status" class="text-sm font-medium text-gray-500">Ready to load</div>
+                </div>
+                <div class="mb-4">
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="h-full bg-blue-500 progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="init-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center disabled:opacity-70">
+                        <i class="fas fa-play mr-2"></i> Initialize Model
+                    </button>
+                    <button id="reset-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center">
+                        <i class="fas fa-redo mr-2"></i> Reset
+                    </button>
+                </div>
+                <div id="error-display" class="mt-4 hidden">
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 error-message">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-500"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p id="error-text" class="text-sm text-red-700"></p>
+                                <div class="mt-2">
+                                    <button id="retry-btn" class="text-sm text-red-500 hover:text-red-700 font-medium">
+                                        <i class="fas fa-sync-alt mr-1"></i> Retry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 text-sm text-gray-500">
+                    <p>Initial loading may take a few minutes depending on your internet connection.</p>
+                    <p class="mt-1">Requires Chrome/Edge with WebGPU support. Mobile devices not supported.</p>
+                </div>
+            </div>
+
+            <!-- Chat interface -->
+            <div id="chat-section" class="hidden">
+                <div id="chat-messages" class="chat-container p-6 overflow-y-auto space-y-4">
+                    <div class="message-enter flex justify-start">
+                        <div class="max-w-[80%]">
+                            <div class="bg-gray-100 text-gray-800 px-4 py-3 rounded-lg rounded-tl-none">
+                                <p>Hello! I'm Llama 3.2 1B, an AI assistant running directly in your browser. How can I help you today?</p>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 ml-1">MLC AI</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 border-t border-gray-200 bg-gray-50">
+                    <form id="chat-form" class="flex space-x-2">
+                        <input 
+                            id="message-input" 
+                            type="text" 
+                            placeholder="Type your message..." 
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            autocomplete="off"
+                            disabled
+                        >
+                        <button 
+                            type="submit" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center w-12 disabled:opacity-70"
+                            disabled
+                            id="send-btn"
+                        >
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                    <div class="mt-2 text-xs text-gray-500 flex justify-between">
+                        <div id="typing-indicator" class="typing-indicator hidden">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div id="stats-display" class="text-gray-400">Model: Llama-3.2-1B-Instruct-q4f16_0-MLC</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-8 text-center text-gray-500 text-sm">
+            <p>This demo runs the Llama 3.2 1B model directly in your browser using WebGPU. No data is sent to servers.</p>
+            <p class="mt-1">Powered by <a href="https://mlc.ai/" class="text-blue-600 hover:underline">MLC</a> and <a href="https://huggingface.co/mlc-ai" class="text-blue-600 hover:underline">Hugging Face</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Global variables
+        let engine = null;
+        let chatHistory = [];
+        const modelId = "mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC";
+        
+        // DOM elements
+        const initBtn = document.getElementById('init-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const loadingStatus = document.getElementById('loading-status');
+        const progressBar = document.getElementById('progress-bar');
+        const chatSection = document.getElementById('chat-section');
+        const loadingSection = document.getElementById('loading-section');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const statsDisplay = document.getElementById('stats-display');
+        const sendBtn = document.getElementById('send-btn');
+        const errorDisplay = document.getElementById('error-display');
+        const errorText = document.getElementById('error-text');
+        const retryBtn = document.getElementById('retry-btn');
+
+        // Check for WebGPU support
+        function checkWebGPUSupport() {
+            if (!navigator.gpu) {
+                showError("WebGPU is not supported in your browser. Please use Chrome/Edge with WebGPU enabled.");
+                initBtn.disabled = true;
+                return false;
+            }
+            return true;
+        }
+
+        // Show error message
+        function showError(message) {
+            errorText.textContent = message;
+            errorDisplay.classList.remove('hidden');
+            loadingStatus.textContent = 'Error occurred';
+            progressBar.classList.remove('bg-blue-500');
+            progressBar.classList.add('bg-red-500');
+        }
+
+        // Hide error message
+        function hideError() {
+            errorDisplay.classList.add('hidden');
+        }
+
+        // Initialize the model
+        async function initializeModel() {
+            if (!checkWebGPUSupport()) return;
+            
+            try {
+                initBtn.disabled = true;
+                initBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Initializing...';
+                loadingStatus.textContent = 'Downloading model...';
+                hideError();
+                
+                // Configure the app with more robust error handling
+                const appConfig = {
+                    model_list: [
+                        {
+                            model: `https://huggingface.co/${modelId}`,
+                            model_id: modelId,
+                            model_lib: "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_48/Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+                            required_features: ["shader-f16"],
+                            vram_required_MB: 879.04,
+                            low_resource_required: true,
+                            overrides: {
+                                context_window_size: 4096,
+                            },
+                        }
+                    ],
+                    use_cache: false, // Disable cache completely
+                    max_download_attempts: 3, // Add retry attempts
+                    timeout: 120000, // 2 minute timeout
+                };
+                
+                // Enhanced progress callback with error handling
+                const progressCallback = (report) => {
+                    try {
+                        if (report.progress) {
+                            const percent = Math.floor(report.progress * 100);
+                            progressBar.style.width = `${percent}%`;
+                            loadingStatus.textContent = report.text || `Loading... ${percent}%`;
+                        }
+                        
+                        if (report.status === 'error') {
+                            throw new Error(report.error || 'Unknown error during model loading');
+                        }
+                    } catch (error) {
+                        console.error('Progress callback error:', error);
+                    }
+                };
+
+                // Check for shader-f16 support
+                const adapter = await navigator.gpu?.requestAdapter();
+                if (!adapter?.features.has('shader-f16')) {
+                    throw new Error('Your GPU does not support 16-bit floating point operations required by this model.');
+                }
+                
+                // Create engine with enhanced error handling
+                engine = await window.webllm.CreateMLCEngine(modelId, { 
+                    appConfig: appConfig,
+                    initProgressCallback: progressCallback
+                }).catch(err => {
+                    // Handle specific error cases
+                    if (err.message.includes('Cache')) {
+                        throw new Error('Browser cache error. Please clear your browser cache and try again.');
+                    }
+                    if (err.message.includes('timeout')) {
+                        throw new Error('Download timed out. Please check your internet connection and try again.');
+                    }
+                    throw new Error(`Model initialization failed: ${err.message}`);
+                });
+                
+                // Success handling
+                loadingStatus.textContent = 'Model loaded successfully!';
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-green-500');
+                
+                loadingSection.classList.add('hidden');
+                chatSection.classList.remove('hidden');
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showError(error.message);
+                initBtn.disabled = false;
+                initBtn.innerHTML = '<i class="fas fa-play mr-2"></i> Try Again';
+                
+                // Add retry button functionality
+                retryBtn.onclick = () => {
+                    hideError();
+                    setTimeout(initializeModel, 1000); // Add slight delay before retry
+                };
+            }
+        }
+
+        // Reset the model
+        function resetModel() {
+            if (engine) {
+                try {
+                    engine.unload();
+                } catch (e) {
+                    console.warn('Error unloading model:', e);
+                }
+                engine = null;
+            }
+            
+            // Reset UI
+            progressBar.style.width = '0%';
+            progressBar.classList.remove('bg-green-500', 'bg-red-500');
+            progressBar.classList.add('bg-blue-500');
+            loadingStatus.textContent = 'Ready to load';
+            initBtn.disabled = false;
+            initBtn.innerHTML = '<i class="fas fa-play mr-2"></i> Initialize Model';
+            hideError();
+            
+            // Disable chat input
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            // Clear chat
+            chatHistory = [];
+            chatMessages.innerHTML = `
+                <div class="message-enter flex justify-start">
+                    <div class="max-w-[80%]">
+                        <div class="bg-gray-100 text-gray-800 px-4 py-3 rounded-lg rounded-tl-none">
+                            <p>Hello! I'm Llama 3.2 1B, an AI assistant running directly in your browser. How can I help you today?</p>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1 ml-1">MLC AI</div>
+                    </div>
+                </div>
+            `;
+            
+            // Show loading section
+            chatSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', initializeModel);
+        resetBtn.addEventListener('click', resetModel);
+        retryBtn.addEventListener('click', initializeModel);
+
+        // Handle chat submission
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const message = messageInput.value.trim();
+            if (!message || !engine) return;
+            
+            // Disable input while processing
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            // Add user message to chat
+            addMessage(message, 'user');
+            messageInput.value = '';
+            
+            // Show typing indicator
+            typingIndicator.classList.remove('hidden');
+            
+            try {
+                // Generate response
+                const response = await engine.chat.completions.create({
+                    messages: [...chatHistory, { role: "user", content: message }],
+                    stream: true,
+                }).catch(err => {
+                    throw new Error(`Failed to generate response: ${err.message}`);
+                });
+                
+                // Process streaming response
+                let fullResponse = '';
+                let assistantMessageElement = null;
+                
+                for await (const chunk of response) {
+                    const content = chunk.choices[0]?.delta?.content || '';
+                    if (content) {
+                        fullResponse += content;
+                        
+                        // Create or update assistant message
+                        if (!assistantMessageElement) {
+                            assistantMessageElement = createMessageElement('', 'assistant');
+                            chatMessages.appendChild(assistantMessageElement);
+                        }
+                        
+                        // Update content with typing effect
+                        assistantMessageElement.querySelector('p').textContent = fullResponse;
+                        
+                        // Scroll to bottom
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }
+                
+                // Add to chat history
+                chatHistory.push({ role: "user", content: message });
+                chatHistory.push({ role: "assistant", content: fullResponse });
+                
+                // Update stats
+                try {
+                    const stats = await engine.getStats();
+                    statsDisplay.textContent = `Tokens: ${stats.numPromptTokens}/${stats.numGeneratedTokens} | Speed: ${stats.tokensPerSecond.toFixed(1)} tokens/sec`;
+                } catch (e) {
+                    console.warn('Failed to get stats:', e);
+                }
+                
+            } catch (error) {
+                console.error('Chat error:', error);
+                addMessage(`Sorry, I encountered an error: ${error.message}`, 'assistant');
+            } finally {
+                typingIndicator.classList.add('hidden');
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        });
+
+        // Helper function to add a message to the chat
+        function addMessage(content, role) {
+            const messageElement = createMessageElement(content, role);
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Add to chat history
+            if (role === 'user') {
+                chatHistory.push({ role: "user", content });
+            } else if (role === 'assistant') {
+                chatHistory.push({ role: "assistant", content });
+            }
+        }
+
+        // Helper function to create a message element
+        function createMessageElement(content, role) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-enter flex ' + (role === 'user' ? 'justify-end' : 'justify-start');
+            
+            const messageContent = `
+                <div class="max-w-[80%]">
+                    <div class="${role === 'user' ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-gray-100 text-gray-800 rounded-tl-none'} px-4 py-3 rounded-lg">
+                        <p>${content}</p>
+                    </div>
+                    <div class="text-xs ${role === 'user' ? 'text-blue-500' : 'text-gray-500'} mt-1 ${role === 'user' ? 'mr-1 text-right' : 'ml-1'}">
+                        ${role === 'user' ? 'You' : 'MLC AI'}
+                    </div>
+                </div>
+            `;
+            
+            messageDiv.innerHTML = messageContent;
+            return messageDiv;
+        }
+
+        // Initial check for WebGPU support
+        checkWebGPUSupport();
+    </script>
+</body>
+</html>

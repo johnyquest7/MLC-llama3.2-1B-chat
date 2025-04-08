@@ -181,8 +181,8 @@
         // Global variables
         let engine = null;
         let chatHistory = [];
-        //const modelId = "mlc-ai/gemma-2-2b-it-q4f16_1-MLC";  mlc-ai/gemma-3-1b-it-q4bf16_1-MLC
-        const modelId = "mlc-ai/gemma-3-1b-it-q4bf16_1-MLC";
+        const modelId = "mlc-ai/gemma-2-2b-it-q4f16_1-MLC";   
+        // const modelId = "mlc-ai/gemma-3-1b-it-q4bf16_1-MLC";
         // DOM elements
         const initBtn = document.getElementById('init-btn');
         const resetBtn = document.getElementById('reset-btn');
@@ -240,8 +240,8 @@
                         {
                             model: `https://huggingface.co/${modelId}`,
                             model_id: modelId,
-                            //model_lib: "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_48/gemma-2-2b-it-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-                            model_lib: "https://uploads.nico.dev/mlc-llm-libs/gemma-3-4b-it-q4f16_1-MLC/lib/gemma-3-4b-it-q4f16_1-webgpu.wasm",
+                            model_lib: "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_48/gemma-2-2b-it-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+                            //model_lib: "https://uploads.nico.dev/mlc-llm-libs/gemma-3-4b-it-q4f16_1-MLC/lib/gemma-3-4b-it-q4f16_1-webgpu.wasm",
                             required_features: ["shader-f16"],
                             vram_required_MB: 1895.3,
                             low_resource_required: true,
